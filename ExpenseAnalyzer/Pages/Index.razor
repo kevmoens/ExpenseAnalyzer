@@ -57,12 +57,6 @@
     public List<Transaction> AllTransactions { get; set; } = new List<Transaction>();
     public List<Transaction> DisplayTransactions { get; set; } = new List<Transaction>();
 
-    private IJSObjectReference? _jsModule;
-    protected override async Task OnInitializedAsync()
-    {
-        _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scripts/app.js");
-    }
-
     private async void UploadFiles(InputFileChangeEventArgs e)
     {
         AllTransactions = serviceProvider.GetRequiredService<List<Transaction>>();
@@ -101,13 +95,9 @@
                                select trx).ToList();
         StateHasChanged();
     }
-    public async void OnAddCategory()
+    public async Task OnAddCategory()
     {
-        if (_jsModule == null)
-        {
-            return;
-        }
-        selectText = await _jsModule.InvokeAsync<string>("getSelectionText");
+        selectText = await JS.InvokeAsync<string>("getSelectionText");
         StateHasChanged();
     }
 }
