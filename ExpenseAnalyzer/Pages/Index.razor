@@ -1,0 +1,113 @@
+﻿@page "/"
+@inject IServiceProvider serviceProvider
+@inject IJSRuntime JS
+
+<PageTitle>Index</PageTitle>
+@selectText
+<InputFile id="fileInput" OnChange="UploadFiles" hidden />
+<div class="row-header">
+    <div class="column-header">
+        <MudButton HtmlTag="label"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Filled.CloudUpload"
+                   for="fileInput">
+            Upload Files
+        </MudButton>
+    </div>
+    <div class="column-header">
+        <MudDatePicker Label="Start Date" @bind-Date="StartDate" />
+    </div>
+    <div class="column-header">
+        <MudDatePicker Label="End Date" @bind-Date="EndDate" />
+    </div>
+    <div class="column-header">
+        <MudButton Variant="Variant.Filled"
+           Color="Color.Primary"
+           StartIcon="@Icons.Filled.FilterList"
+           @onclick="OnFilter"></MudButton>
+    </div>
+</div>
+
+<table>
+@foreach (var item in DisplayTransactions)
+{
+    <tr>
+        <td>@item.TrxDate?.ToShortDateString()</td>
+        <td>
+            <MudMenu ActivationEvent="@MouseEvent.RightClick">
+                <ActivatorContent>
+                    @item.Description
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem @onclick="OnAddCategory">Add To Category</MudMenuItem>]
+                </ChildContent>
+            </MudMenu>
+            
+        </td>
+        <td>@item.Amount</td>
+    </tr>
+}
+</table>
+@code
+{
+    public string? selectText;
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public List<Transaction> AllTransactions { get; set; } = new List<Transaction>();
+    public List<Transaction> DisplayTransactions { get; set; } = new List<Transaction>();
+
+    private IJSObjectReference? _jsModule;
+    protected override async Task OnInitializedAsync()
+    {
+        _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scripts/app.js");
+    }
+
+    private async void UploadFiles(InputFileChangeEventArgs e)
+    {
+        AllTransactions = serviceProvider.GetRequiredService<List<Transaction>>();
+        AllTransactions.Clear();
+        foreach (var file in e.GetMultipleFiles())
+        {
+            using (var stream = file.OpenReadStream())
+            {
+                StreamReader reader = new StreamReader(stream);
+                string text = await reader.ReadToEndAsync();
+                foreach(var line in text.Split(Environment.NewLine,StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var values = (from ln in line.Split(',') select ln.TrimStart('"').TrimEnd('"')).ToList();
+                    var trx = serviceProvider.GetRequiredService<Expense.Transaction>();
+                    //"Date","ReferenceNo.","Type","Description","Debit","Credit","CheckNumber","Balance"
+                    trx.TrxDate = values[0].ToDateTime();
+                    trx.Type = values[2];
+                    trx.Description = values[3].CleanDescription();
+                    trx.Amount = values[4].ToDouble() ?? values[5].ToDouble();
+                    if (trx.TrxDate != null && trx.Amount != null)
+                    {
+                        AllTransactions.Add(trx);
+                    }
+                    StartDate = AllTransactions.Select(t => t.TrxDate).Min();
+                    EndDate = AllTransactions.Select(t => t.TrxDate).Max();
+                }
+                DisplayTransactions = AllTransactions.ToList();
+                StateHasChanged();
+            }
+        }
+    }
+    public void OnFilter()
+    {
+        DisplayTransactions = (from trx in AllTransactions
+                               where StartDate <= trx.TrxDate && trx.TrxDate <= EndDate
+                               select trx).ToList();
+        StateHasChanged();
+    }
+    public async void OnAddCategory()
+    {
+        if (_jsModule == null)
+        {
+            return;
+        }
+        selectText = await _jsModule.InvokeAsync<string>("getSelectionText");
+        StateHasChanged();
+    }
+}

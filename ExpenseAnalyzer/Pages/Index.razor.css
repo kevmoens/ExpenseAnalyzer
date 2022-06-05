@@ -1,0 +1,11 @@
+﻿.row-header {
+    display: grid;
+    grid-template-columns: auto auto auto 50px;
+    column-gap: 50px;
+}
+.column-header {
+    align-content: center;
+    align-items: center;
+    justify-content: center;
+}
+
