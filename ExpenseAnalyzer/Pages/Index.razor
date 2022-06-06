@@ -51,6 +51,9 @@
 </table>
 @code
 {
+
+    [CascadingParameter] public IModalService Modal { get; set; } = default!;
+
     public string? selectText;
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
@@ -98,6 +101,17 @@
     public async Task OnAddCategory()
     {
         selectText = await JS.InvokeAsync<string>("getSelectionText");
+        var parameters = new ModalParameters
+        {
+            { nameof(AddToCategory.NewCondition), selectText }
+        };
+
+        var result = Modal.Show<AddToCategory>("Welcome to Blazored Modal", parameters);
+
+        if (!result.Cancelled)
+            {
+
+            }
         StateHasChanged();
     }
 }
