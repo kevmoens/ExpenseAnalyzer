@@ -1,18 +1,64 @@
 ﻿<div>
-    <p>Please click one of the buttons below to close or cancel the modal.</p>
+    @if (Categories != null)
+        {
+        <div class="select-editable">
+            <select @bind="@SelectedCategory" >
+                @foreach (var ky in Categories.Keys)
+                    {
+                    <option value="@ky">@ky</option>
+                    }
+            </select>
+            <input type="text" name="format" @bind-value="SelectedCategory"/>
+        </div>
+        }
 
+    <br />
     <button @onclick="Close" class="btn btn-primary">Close</button>
     <button @onclick="Cancel" class="btn btn-secondary">Cancel</button>
+    <br />
+    <p class="error-message">
+        @ErrorMessage
+    </p>
 </div>
 
 @code {
 
+    [Inject]
+    public Dictionary<string, Category>? Categories { get; set; }
+    public string? SelectedCategory { get; set; }
+    public string? ErrorMessage { get; set; }
     [CascadingParameter] BlazoredModalInstance BlazoredModal { get; set; } = default!;
 
     [Parameter] public string? NewCondition { get; set; }
+    [Parameter] public TaskCompletionSource? TCS { get; set; }
+    async Task Close()
+    {
+        if (NewCondition == null)
+        {
+            ErrorMessage = "Invalid New Condition";
+            return;
+        }
+        if (Categories == null || string.IsNullOrEmpty(SelectedCategory))
+        {
+            ErrorMessage = "Invalid Category";
+            return;
+        }
+        if (Categories.ContainsKey(SelectedCategory))
+        {
+            Categories[SelectedCategory].Conditions.Add(NewCondition);
+        } else
+        {
+            Categories.Add(SelectedCategory, new Category() { Name = SelectedCategory, Conditions = { NewCondition } });
+        }
+        await BlazoredModal.CloseAsync(ModalResult.Ok(true));
+        TCS?.SetResult();
+    }
 
-    async Task Close() => await BlazoredModal.CloseAsync(ModalResult.Ok(true));
-    async Task Cancel() => await BlazoredModal.CancelAsync();
+    async Task Cancel()
+    {
+        await BlazoredModal.CancelAsync();
+        TCS?.SetResult();
+    }
 
-}
+    }
 
