@@ -3,7 +3,7 @@
         {
         <div class="select-editable">
             <select @bind="@SelectedCategory" >
-                @foreach (var ky in Categories.Keys)
+                @foreach (var ky in Categories.Keys.OrderBy(s => s))
                     {
                     <option value="@ky">@ky</option>
                     }

@@ -4,21 +4,50 @@
 @inject Dictionary<string, Category> Categories
 
 <PageTitle>Index</PageTitle>
+<MudHidden @bind-IsHidden="IsNotBusy">
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+</MudHidden>
 
-<InputFile id="fileInput" OnChange="UploadFiles" hidden />
-<MudExpansionPanels>
-    <MudExpansionPanel Text="Filter" MaxHeight="150">
-      
+<div class="row">
+    <InputFile id="fileInput" OnChange="UploadFiles" hidden />
+
+    <div class="column-header col-md-3 col-sm-6">
+        <MudButton HtmlTag="label"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Filled.CloudUpload"
+                   for="fileInput">
+            Upload Bank CSV
+        </MudButton>
+    </div>
+
+    <InputFile id="catInput" OnChange="UploadCategories" hidden />
+
+    <div class="column-header col-md-3 col-sm-6">
+        <MudButton HtmlTag="label"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Filled.CloudUpload"
+                   for="catInput">
+            Upload Categories
+        </MudButton>
+    </div>
+    <div class="column-header col-md-3 col-sm-6">
+        <MudButton HtmlTag="label"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   @onclick="OnDownloadCategories"
+                   StartIcon="@Icons.Filled.FileDownload">
+            Download Categories
+        </MudButton>
+    </div>
+
+</div>
+
+<MudExpansionPanels MultiExpansion="true">
+    <MudExpansionPanel Text="Filter">
+
         <div class="row">
-            <div class="column-header col-md-3 col-sm-6">
-                <MudButton HtmlTag="label"
-                           Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Filled.CloudUpload"
-                           for="fileInput">
-                    Upload Files
-                </MudButton>
-            </div>
             <div class="column-header col-md-3 col-sm-6">
                 <MudDatePicker Label="Start Date" @bind-Date="StartDate" />
             </div>
@@ -27,193 +56,251 @@
             </div>
             <div class="column-header col-md-3 col-sm-6">
                 <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Filled.FilterList"
-                           @onclick="OnFilter"></MudButton>
+                            Color="Color.Primary"
+                            StartIcon="@Icons.Filled.FilterList"
+                            @onclick="OnFilter"></MudButton>
             </div>
         </div>
 
         <table>
-        @foreach (var cat in Categories.Keys)
+            @foreach (var cat in Categories.Keys.OrderBy(s => s))
             {
                 Category category = Categories[cat];
+                <tr>
+                    <td><input type="checkbox" @bind="category.Selected" /></td>
+                    <td>@cat</td>
+                </tr>
+            }
+        </table>
+    </MudExpansionPanel>
+    <MudExpansionPanel Text="Category Sums">
+        <table>
             <tr>
-                <td><input type="checkbox" @bind="category.Selected"/></td>
-                <td>@cat</td>
+                <th>Category</th>
+                <th>Amount</th>
             </tr>
-        }
+            @foreach (var item in (from oTrx
+                            in DisplayTransactions
+                                    group oTrx by oTrx.Category
+                                into g
+                                    orderby g.Key
+                                    select new
+                                    {
+                                        Category = g.Key
+                                        ,
+                                        Amount = g.Sum(t => t.Amount)
+                                    }))
+            {
+                <tr>
+                    <td>@item.Category</td>
+                    <td>@item.Amount</td>
+                </tr>
+            }
+        </table>
+
+        <h2>
+            TOTAL:
+            @(DisplayTransactions.Sum(t => t.Amount))
+        </h2>
+    </MudExpansionPanel>
+    <MudExpansionPanel Text="Detail">
+        <table>
+            @foreach (var item in DisplayTransactions)
+            {
+                <tr>
+                    <td>@item.TrxDate?.ToShortDateString()</td>
+                    <td>
+                        <MudMenu ActivationEvent="@MouseEvent.RightClick">
+                            <ActivatorContent>
+                                @item.Description
+                            </ActivatorContent>
+                            <ChildContent>
+                                <MudMenuItem @onclick="OnAddCategory">Add To Category</MudMenuItem>]
+                            </ChildContent>
+                        </MudMenu>
+
+                    </td>
+                    <td>@item.Amount</td>
+                    <td>
+                        <select @bind="@item.Category">
+                            @foreach (var ky in Categories.Keys)
+                            {
+                                <option value="@ky">@ky</option>
+                            }
+                        </select>
+                    </td>
+                </tr>
+            }
         </table>
     </MudExpansionPanel>
 </MudExpansionPanels>
-
-    <table>
-        @foreach (var item in DisplayTransactions)
-        {
-            <tr>
-                <td>@item.TrxDate?.ToShortDateString()</td>
-                <td>
-                    <MudMenu ActivationEvent="@MouseEvent.RightClick">
-                        <ActivatorContent>
-                            @item.Description
-                        </ActivatorContent>
-                        <ChildContent>
-                            <MudMenuItem @onclick="OnAddCategory">Add To Category</MudMenuItem>]
-                        </ChildContent>
-                    </MudMenu>
-
-                </td>
-                <td>@item.Amount</td>
-                <td>
-                    <select @bind="@item.Category">
-                        @foreach (var ky in Categories.Keys)
-                        {
-                            <option value="@ky">@ky</option>
-                        }
-                    </select>
-                </td>
-            </tr>
-        }
-    </table>
-    @code
+@code
 {
 
-        [CascadingParameter] public IModalService Modal { get; set; } = default!;
+    [CascadingParameter] public IModalService Modal { get; set; } = default!;
 
-        public string? selectText;
-        public DateTime? StartDate { get; set; }
-        public DateTime? EndDate { get; set; }
-        public List<Transaction> AllTransactions { get; set; } = new List<Transaction>();
-        public List<Transaction> DisplayTransactions { get; set; } = new List<Transaction>();
+    public string? selectText;
+    public bool IsNotBusy = true;
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public List<Transaction> AllTransactions { get; set; } = new List<Transaction>();
+    public List<Transaction> DisplayTransactions { get; set; } = new List<Transaction>();
 
-        private async Task UploadFiles(InputFileChangeEventArgs e)
+    private async Task UploadFiles(InputFileChangeEventArgs e)
+    {
+        IsNotBusy = false;
+        AllTransactions = serviceProvider.GetRequiredService<List<Transaction>>();
+        AllTransactions.Clear();
+        foreach (var file in e.GetMultipleFiles())
         {
-            AllTransactions = serviceProvider.GetRequiredService<List<Transaction>>();
-            AllTransactions.Clear();
-            foreach (var file in e.GetMultipleFiles())
+            using (var stream = file.OpenReadStream())
             {
-                using (var stream = file.OpenReadStream())
+                StreamReader reader = new StreamReader(stream);
+                string text = await reader.ReadToEndAsync();
+                foreach (var line in text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    StreamReader reader = new StreamReader(stream);
-                    string text = await reader.ReadToEndAsync();
-                    foreach (var line in text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
+                    var values = (from ln in line.Split(',') select ln.TrimStart('"').TrimEnd('"')).ToList();
+                    var trx = serviceProvider.GetRequiredService<Expense.Transaction>();
+                    //"Date","ReferenceNo.","Type","Description","Debit","Credit","CheckNumber","Balance"
+                    trx.TrxDate = values[0].ToDateTime();
+                    trx.Type = values[2];
+                    trx.Description = values[3].CleanDescription();
+                    trx.Amount = values[4].ToDouble() ?? values[5].ToDouble();
+                    trx.Category = "UNDEFINED";
+                    if (trx.TrxDate != null && trx.Amount != null)
                     {
-                        var values = (from ln in line.Split(',') select ln.TrimStart('"').TrimEnd('"')).ToList();
-                        var trx = serviceProvider.GetRequiredService<Expense.Transaction>();
-                        //"Date","ReferenceNo.","Type","Description","Debit","Credit","CheckNumber","Balance"
-                        trx.TrxDate = values[0].ToDateTime();
-                        trx.Type = values[2];
-                        trx.Description = values[3].CleanDescription();
-                        trx.Amount = values[4].ToDouble() ?? values[5].ToDouble();
-                        trx.Category = "UNDEFINED";
-                        if (trx.TrxDate != null && trx.Amount != null)
-                        {
-                            AllTransactions.Add(trx);
-                        }
-                        StartDate = AllTransactions.Select(t => t.TrxDate).Min();
-                        EndDate = AllTransactions.Select(t => t.TrxDate).Max();
+                        AllTransactions.Add(trx);
                     }
-                    DisplayTransactions = AllTransactions
-                        .OrderBy(t => t.Description)
-                        .OrderBy(t => t.TrxDate)
-                        .ToList();
+                    StartDate = AllTransactions.Select(t => t.TrxDate).Min();
+                    EndDate = AllTransactions.Select(t => t.TrxDate).Max();
+
                     StateHasChanged();
+                    await Task.Delay(1);
+                }
+                DisplayTransactions = AllTransactions
+                    .OrderBy(t => t.Description)
+                    .OrderBy(t => t.TrxDate)
+                    .ToList();
+                StateHasChanged();
+            }
+        }
+        IsNotBusy = true;
+    }
+    private async Task UploadCategories(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            using (var stream = file.OpenReadStream())
+            {
+                StreamReader reader = new StreamReader(stream);
+                string text = await reader.ReadToEndAsync();
+                var loadedCategories = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Category>>(text);
+                if (loadedCategories?.Count > 0)
+                {
+                    Categories = loadedCategories;
                 }
             }
         }
-        public void OnFilter()
+    }
+    public void OnFilter()
+    {
+        var filters = new List<Func<Transaction, bool>>();
+        if (StartDate != null && StartDate != DateTime.MinValue)
         {
-            var filters = new List<Func<Transaction, bool>>();
-            if (StartDate != null && StartDate != DateTime.MinValue)
-            {
-                filters.Add(new Func<Transaction, bool>(t => StartDate <= t.TrxDate));
-            }
-            if (EndDate != null && EndDate != DateTime.MinValue)
-            {
-                filters.Add(new Func<Transaction, bool>(t => t.TrxDate <= EndDate));
-            }
+            filters.Add(new Func<Transaction, bool>(t => StartDate <= t.TrxDate));
+        }
+        if (EndDate != null && EndDate != DateTime.MinValue)
+        {
+            filters.Add(new Func<Transaction, bool>(t => t.TrxDate <= EndDate));
+        }
 
-            var unionFilters = new List<Func<Transaction, bool>>();
-            foreach (var catKey in Categories.Keys)
+        var unionFilters = new List<Func<Transaction, bool>>();
+        foreach (var catKey in Categories.Keys)
+        {
+            if (Categories[catKey].Selected ?? false)
             {
-                if (Categories[catKey].Selected ?? false)
+                unionFilters.Add(new Func<Transaction, bool>(t =>
                 {
-                    unionFilters.Add(new Func<Transaction, bool>(t =>
+                    if (t.Category == catKey)
                     {
-                        if (t.Category == catKey)
-                        {
-                            return true;
-                        }
-                        return false;
-                    }));
-                }
-
-            }
-            OnFilterDetail(filters, unionFilters);
-        }
-        public void OnFilterDetail(IEnumerable<Func<Transaction,bool>> filters, IEnumerable<Func<Transaction, bool>> unionFilters)
-        {
-            var tempTrans = AllTransactions.ToList();
-            foreach (var filter in filters)
-            {
-                var filterTrans = tempTrans.Where(filter).ToList();
-                tempTrans = filterTrans;
-            }
-            var unionTrans = new List<Transaction>();
-            foreach (var filter in unionFilters)
-            {
-                unionTrans.AddRange(tempTrans.Where(filter));
-            }
-            DisplayTransactions = unionTrans
-                        .Distinct()
-                        .OrderBy(t => t.Description)
-                        .OrderBy(t => t.TrxDate)
-                        .ToList();
-
-
-            StateHasChanged();
-        }
-        public async Task OnAddCategory()
-        {
-            selectText = await JS.InvokeAsync<string>("getSelectionText");
-
-            var tcs = new TaskCompletionSource();
-            var parameters = new ModalParameters();
-            parameters.Add(nameof(AddToCategory.NewCondition), selectText);
-            parameters.Add(nameof(AddToCategory.TCS), tcs);
-            var result = Modal.Show<AddToCategory>("Add Condition to Category", parameters);
-            await tcs.Task;
-            if (!result.Result.IsCanceled)
-            {
-                await OnRecalculateTransactionsCategory();
-                OnFilter();
-            }
-            StateHasChanged();
-        }
-        public async Task OnRecalculateTransactionsCategory()
-        {
-            foreach (var trx in AllTransactions)
-            {
-                var tran = trx;
-                await UpdateTransactionCategory(ref tran);
-            }
-        }
-        public Task UpdateTransactionCategory(ref Transaction trx)
-        {
-            foreach (var catKey in Categories.Keys)
-            {
-                var cat = Categories[catKey];
-                foreach (var cond in cat.Conditions)
-                {
-                    if (trx.Description?.Contains(cond, StringComparison.InvariantCultureIgnoreCase) ?? false)
-                    {
-                        trx.Category = catKey;
-                        return Task.CompletedTask;
+                        return true;
                     }
+                    return false;
+                }));
+            }
+        }
+        OnFilterDetail(filters, unionFilters);
+    }
+    public void OnFilterDetail(IEnumerable<Func<Transaction, bool>> filters, IEnumerable<Func<Transaction, bool>> unionFilters)
+    {
+        var tempTrans = AllTransactions.ToList();
+        foreach (var filter in filters)
+        {
+            var filterTrans = tempTrans.Where(filter).ToList();
+            tempTrans = filterTrans;
+        }
+        var unionTrans = new List<Transaction>();
+        foreach (var filter in unionFilters)
+        {
+            unionTrans.AddRange(tempTrans.Where(filter));
+        }
+        DisplayTransactions = unionTrans
+                    .Distinct()
+                    .OrderBy(t => t.Description)
+                    .OrderBy(t => t.TrxDate)
+                    .ToList();
 
+        StateHasChanged();
+    }
+    public async Task OnAddCategory()
+    {
+        selectText = await JS.InvokeAsync<string>("getSelectionText");
+
+        var tcs = new TaskCompletionSource();
+        var parameters = new ModalParameters();
+        parameters.Add(nameof(AddToCategory.NewCondition), selectText);
+        parameters.Add(nameof(AddToCategory.TCS), tcs);
+        var result = Modal.Show<AddToCategory>("Add Condition to Category", parameters);
+        await tcs.Task;
+        if (!result.Result.IsCanceled)
+        {
+            await OnRecalculateTransactionsCategory();
+            OnFilter();
+        }
+        StateHasChanged();
+    }
+    public async Task OnRecalculateTransactionsCategory()
+    {
+        foreach (var trx in AllTransactions)
+        {
+            var tran = trx;
+            await UpdateTransactionCategory(ref tran);
+        }
+    }
+    public Task UpdateTransactionCategory(ref Transaction trx)
+    {
+        foreach (var catKey in Categories.Keys)
+        {
+            var cat = Categories[catKey];
+            foreach (var cond in cat.Conditions)
+            {
+                if (trx.Description?.Contains(cond, StringComparison.InvariantCultureIgnoreCase) ?? false)
+                {
+                    trx.Category = catKey;
+                    return Task.CompletedTask;
                 }
             }
-            trx.Category = "UNDEFINED";
-            return Task.CompletedTask;
         }
+        trx.Category = "UNDEFINED";
+        return Task.CompletedTask;
+    }
+    public async Task OnDownloadCategories()
+    {
+        // Generate a text file
+        var json = Newtonsoft.Json.JsonConvert.SerializeObject(Categories);
+        byte[] file = System.Text.Encoding.UTF8.GetBytes(json);
+        await JS.InvokeVoidAsync("BlazorDownloadFile", "categories.json", "text/plain", file);
+
+    }
     }
 
