@@ -4,9 +4,9 @@
 @inject Dictionary<string, Category> Categories
 
 <PageTitle>Index</PageTitle>
-<MudHidden @bind-IsHidden="IsNotBusy">
+<div class=" @IsBusy">
     <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
-</MudHidden>
+</div>
 
 <div class="row">
     <InputFile id="fileInput" OnChange="UploadFiles" hidden />
@@ -140,7 +140,7 @@
     [CascadingParameter] public IModalService Modal { get; set; } = default!;
 
     public string? selectText;
-    public bool IsNotBusy = true;
+    public string IsBusy = "invisible";
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public List<Transaction> AllTransactions { get; set; } = new List<Transaction>();
@@ -148,7 +148,7 @@
 
     private async Task UploadFiles(InputFileChangeEventArgs e)
     {
-        IsNotBusy = false;
+        IsBusy = "visible";
         AllTransactions = serviceProvider.GetRequiredService<List<Transaction>>();
         AllTransactions.Clear();
         foreach (var file in e.GetMultipleFiles())
@@ -184,7 +184,7 @@
                 StateHasChanged();
             }
         }
-        IsNotBusy = true;
+        IsBusy = "invisible";
     }
     private async Task UploadCategories(InputFileChangeEventArgs e)
     {
@@ -201,6 +201,10 @@
                 }
             }
         }
+
+        await OnRecalculateTransactionsCategory();
+        OnFilter();
+        StateHasChanged();
     }
     public void OnFilter()
     {
