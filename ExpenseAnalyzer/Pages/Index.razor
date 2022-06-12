@@ -93,14 +93,14 @@
             {
                 <tr>
                     <td>@item.Category</td>
-                    <td>@item.Amount</td>
+                    <td>@ToCurrency(item.Amount)</td>
                 </tr>
             }
         </table>
 
         <h2>
             TOTAL:
-            @(DisplayTransactions.Sum(t => t.Amount))
+            @(ToCurrency(DisplayTransactions.Sum(t => t.Amount)))
         </h2>
     </MudExpansionPanel>
     <MudExpansionPanel Text="Detail">
@@ -115,12 +115,12 @@
                                 @item.Description
                             </ActivatorContent>
                             <ChildContent>
-                                <MudMenuItem @onclick="OnAddCategory">Add To Category</MudMenuItem>]
+                                <MudMenuItem @onclick="OnAddCategory">Add To Category</MudMenuItem>
                             </ChildContent>
                         </MudMenu>
 
                     </td>
-                    <td>@item.Amount</td>
+                    <td>@ToCurrency(item.Amount)</td>
                     <td>
                         <select @bind="@item.Category">
                             @foreach (var ky in Categories.Keys)
@@ -197,7 +197,23 @@
                 var loadedCategories = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Category>>(text);
                 if (loadedCategories?.Count > 0)
                 {
-                    Categories = loadedCategories;
+                    foreach (var newCat in loadedCategories.Keys)
+                    {
+                        if (!Categories.ContainsKey(newCat))
+                        {
+                            Categories.Add(newCat, loadedCategories[newCat]);
+                        }
+                        else
+                        {
+                            foreach (var cond in loadedCategories[newCat].Conditions)
+                            {
+                                if (!Categories[newCat].Conditions.Contains(cond ?? ""))
+                                {
+                                    Categories[newCat].Conditions.Add(cond);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -305,6 +321,10 @@
         byte[] file = System.Text.Encoding.UTF8.GetBytes(json);
         await JS.InvokeVoidAsync("BlazorDownloadFile", "categories.json", "text/plain", file);
 
+    }
+    public string? ToCurrency(double? number)
+    {
+        return number?.ToString("C2");
     }
     }
 
